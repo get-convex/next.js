@@ -21,7 +21,6 @@ import {
   createBufferedTransformStream,
   continueFromInitialStream,
   streamToString,
-  createSuffixStream,
 } from './node-web-streams-helper'
 import { ESCAPE_REGEX, htmlEscapeJsonString } from './htmlescape'
 import { matchSegment } from '../client/components/match-segments'
@@ -521,7 +520,6 @@ function useFlightResponse(
       }
       if (done) {
         flightResponseRef.current = null
-
         writer.close()
       } else {
         const responsePartial = decodeText(value)
@@ -1999,9 +1997,6 @@ export async function renderToHTMLOrFlight(
       }
 
       try {
-        const nextInjectToStreamBuffer: any[] = []
-        ;(globalThis as any).nextInjectToStreamBuffer = nextInjectToStreamBuffer
-
         const renderStream = await renderToInitialStream({
           ReactDOMServer,
           element: content,
@@ -2031,19 +2026,7 @@ export async function renderToHTMLOrFlight(
           ...validateRootLayout,
         })
 
-        const escapeQuote = (str: string) => str.replace(/"/g, '&quot;')
-        const injected = nextInjectToStreamBuffer
-          .map((obj) => {
-            const div = `<div id="${escapeQuote(
-              obj.id
-            )}" data-value="${escapeQuote(
-              obj.value
-            )}">Michal is the greatest</div>`
-            console.log(`Injecting into stream: ${div}`)
-            return div
-          })
-          .join('')
-        return result.pipeThrough(createSuffixStream(injected))
+        return result
       } catch (err: any) {
         const shouldNotIndex = err.digest === NOT_FOUND_ERROR_CODE
         if (err.digest === NOT_FOUND_ERROR_CODE) {
