@@ -324,6 +324,7 @@ export function createRootLayoutValidatorStream(
 
 // TODO: Export nextInjectToStream() instead of modifying globals.
 let nextInjectToStreamBuffer: string[] = []
+
 ;(globalThis as any).nextInjectToStream = (chunk: string) => {
   nextInjectToStreamBuffer.push(chunk)
 }
@@ -332,13 +333,11 @@ let nextInjectToStreamBuffer: string[] = []
 export function customInjectStream(): TransformStream<Uint8Array, Uint8Array> {
   return new TransformStream({
     async transform(chunk, controller) {
+      controller.enqueue(chunk)
       while (nextInjectToStreamBuffer.length > 0) {
         const injectedChunk = nextInjectToStreamBuffer.pop()
-        console.log(`Injecting ${injectedChunk}`)
         controller.enqueue(encodeText(injectedChunk!))
       }
-
-      controller.enqueue(chunk)
     },
   })
 }
@@ -376,6 +375,7 @@ export async function continueFromInitialStream(
     getServerInsertedHTML && !serverInsertedHTMLToHead
       ? createInsertedHTMLStream(getServerInsertedHTML)
       : null,
+    customInjectStream(),
     suffixUnclosed != null ? createDeferredSuffixStream(suffixUnclosed) : null,
     dataStream ? createInlineDataStream(dataStream) : null,
     suffixUnclosed != null ? createSuffixStream(closeTag) : null,
@@ -388,7 +388,6 @@ export async function continueFromInitialStream(
           : ''
       return serverInsertedHTML
     }),
-    customInjectStream(),
     validateRootLayout
       ? createRootLayoutValidatorStream(
           validateRootLayout.assetPrefix,
