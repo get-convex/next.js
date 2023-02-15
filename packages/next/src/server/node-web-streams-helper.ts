@@ -322,6 +322,26 @@ export function createRootLayoutValidatorStream(
   })
 }
 
+// TODO: Export nextInjectToStream() instead of modifying globals.
+let nextInjectToStreamBuffer: string[] = []
+
+;(globalThis as any).nextInjectToStream = (chunk: string) => {
+  nextInjectToStreamBuffer.push(chunk)
+}
+
+// Adds chunks via nextInjectToStream() to the stream as they show up.
+export function customInjectStream(): TransformStream<Uint8Array, Uint8Array> {
+  return new TransformStream({
+    async transform(chunk, controller) {
+      controller.enqueue(chunk)
+      while (nextInjectToStreamBuffer.length > 0) {
+        const injectedChunk = nextInjectToStreamBuffer.pop()
+        controller.enqueue(encodeText(injectedChunk!))
+      }
+    },
+  })
+}
+
 export async function continueFromInitialStream(
   renderStream: ReactReadableStream,
   {
@@ -355,6 +375,7 @@ export async function continueFromInitialStream(
     getServerInsertedHTML && !serverInsertedHTMLToHead
       ? createInsertedHTMLStream(getServerInsertedHTML)
       : null,
+    customInjectStream(),
     suffixUnclosed != null ? createDeferredSuffixStream(suffixUnclosed) : null,
     dataStream ? createInlineDataStream(dataStream) : null,
     suffixUnclosed != null ? createSuffixStream(closeTag) : null,
